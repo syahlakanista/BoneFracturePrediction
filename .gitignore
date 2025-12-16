@@ -1,0 +1,14 @@
+# Virtual environment
+tfenv/
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Model & large files (optional)
+*.h5
+
+# OS files
+.DS_Store
