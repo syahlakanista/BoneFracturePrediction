@@ -26,25 +26,26 @@ st.markdown(
 # ================= LOAD MODEL =================
 @st.cache_resource
 def load_cnn_model():
-    return load_model("cnn-models.h5")
+    return load_model("cnn-model.h5")
 
 model = load_cnn_model()
 
 # ================= PREPROCESS =================
 def preprocess(img):
+    # ERROR 1: Resize tidak konsisten (224 vs 180)
+    # Training Anda pakai 180x180, jadi harus 180
     img = np.array(img)
-    img = cv2.resize(img, (180, 180))
-
-    img = cv2.GaussianBlur(img, (3, 3), 0)
+    img = cv2.resize(img, (224, 224)) 
 
     clahe = cv2.createCLAHE(
-        clipLimit=1.0,
-        tileGridSize=(16, 16)
+        clipLimit=2.0,
+        tileGridSize=(8, 8)
     )
     img = clahe.apply(img)
 
     img = img.astype("float32") / 255.0
-    img = img.reshape(1, 180, 180, 1)
+    
+    img = img.reshape(1, 224, 224, 1)
     return img
 
 # ================= UPLOAD SECTION =================
@@ -68,16 +69,21 @@ if uploaded_file is not None:
     if st.button("🔍 Run Prediction", use_container_width=True):
         with st.spinner("Processing image and running CNN model..."):
             processed = preprocess(img)
-            prob = float(model.predict(processed)[0][0])
+            
+            predictions = model.predict(processed, verbose=0)
+            raw_prob = float(predictions[0][0])
+            
+            prob_not_fractured = raw_prob
+            prob_fractured = 1.0 - prob_not_fractured
 
-        if prob >= 0.6:
-            label = "NOT FRACTURED"
-            confidence = prob * 100
-            st.success("🟢 Result: NOT FRACTURED")
-        else:
+        if prob_fractured >= 0.5: 
             label = "FRACTURED"
-            confidence = (1 - prob) * 100
+            confidence = prob_fractured * 100
             st.error("🔴 Result: FRACTURED")
+        else:
+            label = "NOT FRACTURED"
+            confidence = prob_not_fractured * 100
+            st.success("🟢 Result: NOT FRACTURED")
 
         # ================= RESULT =================
         st.markdown("### 🧠 Prediction Result")
@@ -88,6 +94,14 @@ if uploaded_file is not None:
 
         with colB:
             st.metric("Confidence", f"{confidence:.2f}%")
+            
+        st.markdown("#### 📊 Detailed Probabilities")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Fractured:** {prob_fractured*100:.1f}%")
+        with col2:
+            st.write(f"**Not Fractured:** {prob_not_fractured*100:.1f}%")
+            
         if confidence < 70:
             st.info("⚠️ Prediction confidence is low. Result should be interpreted carefully.")
 
